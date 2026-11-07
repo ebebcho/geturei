@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>月齢カレンダー</title>
+<style>
+:root{--bg:#fffaf5;--card:#ffffff;--text:#3a2f2a;--sub:#8a7a70;--accent:#e8805a;--accent-bg:#fde6dc;--line:#eee3da;--sun:#d9534f;--sat:#3a7bd5;color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#1e1a18;--card:#2a2522;--text:#f2e9e3;--sub:#a89a90;--accent:#f09a78;--accent-bg:#4a3027;--line:#3a332f;--sun:#ef7f7b;--sat:#7fa8ec;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#1e1a18;--card:#2a2522;--text:#f2e9e3;--sub:#a89a90;--accent:#f09a78;--accent-bg:#4a3027;--line:#3a332f;--sun:#ef7f7b;--sat:#7fa8ec;color-scheme:dark}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,"Hiragino Sans","Noto Sans JP",sans-serif}
+.wrap{max-width:520px;margin:0 auto;padding:16px}
+.hero{background:var(--accent-bg);border-radius:16px;padding:14px 16px}
+.hero .lab{font-size:12px;color:var(--sub);margin-bottom:4px}
+.kl{display:flex;justify-content:space-between;align-items:baseline;gap:8px;padding:4px 0}
+.kl .nm{font-size:14px;color:var(--sub)}
+.kl .ag{font-size:20px;font-weight:700;color:var(--accent);margin-left:auto}
+.kl .sb{font-size:12px;color:var(--sub);min-width:4.5em;text-align:right}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin:12px 0 0}
+.chip{font:inherit;font-size:13px;border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:999px;padding:6px 12px;cursor:pointer}
+.chip.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.nav{display:flex;align-items:center;justify-content:space-between;margin:12px 0 2px}
+.nav button{font:inherit;border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:10px;padding:8px 14px;cursor:pointer}
+.nav .ttl{font-size:18px;font-weight:700;text-align:center}
+.range{text-align:center;font-size:13px;color:var(--sub);margin-bottom:8px;min-height:1.2em}
+.grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
+.dow{text-align:center;font-size:12px;color:var(--sub);padding:4px 0}
+.dow:first-child{color:var(--sun)}.dow:nth-child(7){color:var(--sat)}
+.cell{min-height:64px;border:1px solid var(--line);background:var(--card);border-radius:8px;font:inherit;color:var(--text);padding:3px 1px;display:flex;flex-direction:column;align-items:center;gap:1px;cursor:pointer;overflow:hidden}
+.cell.empty{border:none;background:none;cursor:default}
+.cell .d{font-size:13px;line-height:1.2}
+.cell.sun .d{color:var(--sun)}.cell.sat .d{color:var(--sat)}
+.cell .m{font-size:10px;line-height:1.2;white-space:nowrap}
+.cell .dd{font-size:9px;line-height:1.2;color:var(--sub);white-space:nowrap}
+.cell.ann{border-color:var(--accent);background:var(--accent-bg)}
+.cell.ann .m{font-weight:700;color:var(--accent)}
+.cell.today{outline:2px solid var(--accent)}
+.cell.sel{box-shadow:0 0 0 2px var(--text) inset}
+.detail{margin-top:12px;text-align:center;font-size:15px;line-height:1.6;white-space:pre-line;min-height:3em}
+.today-btn{display:block;margin:8px auto 0;font:inherit;font-size:13px;border:none;background:none;color:var(--accent);cursor:pointer}
+details{margin-top:16px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+summary{cursor:pointer;font-size:14px}
+.row{display:flex;gap:6px;align-items:center;margin-top:10px}
+.row input[type=text]{flex:1;min-width:0}
+input{font:inherit;font-size:14px;padding:6px 8px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--text)}
+.del,.add{font:inherit;font-size:13px;border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:8px;padding:6px 10px;cursor:pointer}
+.add{margin-top:10px;color:var(--accent)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hero"><div class="lab">今日の月齢</div><div id="hero"></div></div>
+  <div class="chips" id="chips"></div>
+  <div class="nav">
+    <button id="prev" aria-label="前の月">‹</button>
+    <div class="ttl" id="ttl"></div>
+    <button id="next" aria-label="次の月">›</button>
+  </div>
+  <div class="range" id="range"></div>
+  <div class="grid" id="grid"></div>
+  <div class="detail" id="detail"></div>
+  <button class="today-btn" id="todayBtn">今日に戻る</button>
+  <details id="mgr"><summary>子供の登録・編集</summary><div id="mgrBody"></div></details>
+</div>
+<script>
+var KEY='getsurei-kids';
+var kids=[],selId=null;
+var today=new Date();today=new Date(today.getFullYear(),today.getMonth(),today.getDate());
+var view=new Date(today.getFullYear(),today.getMonth(),1);
+var sel=null;
+try{
+  var raw=localStorage.getItem(KEY);
+  if(raw)kids=JSON.parse(raw);
+  if(!Array.isArray(kids)||!kids.length){
+    kids=[];
+    var old=localStorage.getItem('getsurei-birth');
+    if(old)kids=[{id:1,name:'お子さん',birth:old}];
+  }
+}catch(e){kids=[];}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(kids));}catch(e){}}
+function parse(s){var p=s.split('-').map(Number);return new Date(p[0],p[1]-1,p[2]);}
+function fmt(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function dim(y,m){return new Date(y,m+1,0).getDate();}
+function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+function nm(k,i){return k.name||('お子さん'+(i+1));}
+function cur(){
+  var f=kids.filter(function(k){return k.id===selId;})[0];
+  if(!f&&kids.length){f=kids[0];selId=f.id;}
+  return f||null;
+}
+function age(date,k){
+  if(!k||!k.birth)return null;
+  var b=parse(k.birth);
+  var months=(date.getFullYear()-b.getFullYear())*12+date.getMonth()-b.getMonth();
+  if(date.getDate()<Math.min(b.getDate(),dim(date.getFullYear(),date.getMonth())))months--;
+  if(months<0)return null;
+  var t=b.getMonth()+months;
+  var ay=b.getFullYear()+Math.floor(t/12),am=t%12;
+  var last=new Date(ay,am,Math.min(b.getDate(),dim(ay,am)));
+  return{months:months,days:Math.round((date-last)/86400000),total:Math.round((date-b)/86400000)};
+}
+function text(a){return a.months===0?'生後'+a.days+'日':'生後'+a.months+'ヶ月'+a.days+'日';}
+function yearText(a){
+  if(a.months<12)return '';
+  var y=Math.floor(a.months/12),m=a.months%12;
+  return y+'歳'+(m?m+'ヶ月':'');
+}
+function render(){
+  var hh='';
+  kids.forEach(function(x,i){
+    if(!x.birth)return;
+    var a=age(today,x);
+    hh+='<div class="kl"><span class="nm">'+esc(nm(x,i))+'</span>'+
+      (a?'<span class="ag">'+text(a)+'</span><span class="sb">日齢'+a.total+'</span>':'<span class="ag">誕生前</span>')+'</div>';
+  });
+  document.getElementById('hero').innerHTML=hh||'<div class="kl"><span class="nm">下の「子供の登録・編集」から生年月日を入れてください</span></div>';
+  var k=cur();
+  var ch='';
+  if(kids.length>1)kids.forEach(function(x,i){ch+='<button class="chip'+(x.id===selId?' on':'')+'" data-id="'+x.id+'">'+esc(nm(x,i))+'</button>';});
+  document.getElementById('chips').innerHTML=ch;
+  var y=view.getFullYear(),m=view.getMonth();
+  document.getElementById('ttl').textContent=y+'年'+(m+1)+'月';
+  var a1=age(new Date(y,m,1),k),a2=age(new Date(y,m,dim(y,m)),k);
+  document.getElementById('range').textContent=a2?('この月は '+(a1&&a1.months!==a2.months?a1.months+'〜'+a2.months+'ヶ月':a2.months+'ヶ月台')):'';
+  var h='';
+  ['日','月','火','水','木','金','土'].forEach(function(w){h+='<div class="dow">'+w+'</div>';});
+  for(var i=0;i<new Date(y,m,1).getDay();i++)h+='<div class="cell empty"></div>';
+  for(var d=1;d<=dim(y,m);d++){
+    var dt=new Date(y,m,d),w=dt.getDay(),ag=age(dt,k);
+    var cls='cell'+(w===0?' sun':'')+(w===6?' sat':'');
+    var body='';
+    if(ag){
+      if(ag.total===0){cls+=' ann';body='<span class="m">誕生</span><span class="dd">◎</span>';}
+      else if(ag.days===0){
+        cls+=' ann';
+        body='<span class="m">'+(ag.months%12===0?(ag.months/12)+'歳':ag.months+'ヶ月')+'</span><span class="dd">◎</span>';
+      }else body='<span class="m">'+ag.months+'ヶ月</span><span class="dd">+'+ag.days+'日</span>';
+    }
+    if(fmt(dt)===fmt(today))cls+=' today';
+    if(sel&&fmt(dt)===fmt(sel))cls+=' sel';
+    h+='<button class="'+cls+'" data-d="'+fmt(dt)+'"><span class="d">'+d+'</span>'+body+'</button>';
+  }
+  document.getElementById('grid').innerHTML=h;
+  var det=document.getElementById('detail');
+  if(sel&&k&&k.birth){
+    var as=age(sel,k),w2='日月火水木金土'.charAt(sel.getDay());
+    var head=(sel.getMonth()+1)+'月'+sel.getDate()+'日('+w2+')';
+    if(!as)det.textContent=head+':誕生前';
+    else det.textContent=head+':'+text(as)+(yearText(as)?'('+yearText(as)+')':'')+'\n日齢'+as.total+'日(生後'+Math.floor(as.total/7)+'週'+(as.total%7)+'日)';
+  }else det.textContent=k&&k.birth?'日付をタップすると、日齢などの詳細が見られます':'';
+}
+function renderMgr(){
+  var h='';
+  kids.forEach(function(x,i){
+    h+='<div class="row" data-id="'+x.id+'"><input type="text" class="nmIn" placeholder="名前(例:ひなた)" value="'+esc(x.name)+'"><input type="date" class="bdIn" value="'+esc(x.birth)+'"><button class="del">削除</button></div>';
+  });
+  h+='<button class="add" id="addKid">＋ 子供を追加</button>';
+  document.getElementById('mgrBody').innerHTML=h;
+}
+function kidOf(el){var r=el.closest('.row');var id=Number(r.dataset.id);return kids.filter(function(k){return k.id===id;})[0];}
+document.getElementById('mgrBody').addEventListener('change',function(e){
+  var k=kidOf(e.target);if(!k)return;
+  if(e.target.classList.contains('nmIn'))k.name=e.target.value.trim();
+  if(e.target.classList.contains('bdIn')){k.birth=e.target.value;selId=k.id;view=new Date(today.getFullYear(),today.getMonth(),1);}
+  save();render();
+});
+document.getElementById('mgrBody').addEventListener('click',function(e){
+  if(e.target.id==='addKid'){
+    var k={id:Date.now(),name:'',birth:''};kids.push(k);selId=k.id;save();renderMgr();render();return;
+  }
+  if(e.target.classList.contains('del')){
+    var k2=kidOf(e.target);kids=kids.filter(function(x){return x!==k2;});
+    selId=null;save();renderMgr();render();
+  }
+});
+document.getElementById('chips').addEventListener('click',function(e){
+  var b=e.target.closest('.chip');if(!b)return;selId=Number(b.dataset.id);render();
+});
+document.getElementById('grid').addEventListener('click',function(e){
+  var b=e.target.closest('.cell');if(!b||!b.dataset.d)return;
+  sel=parse(b.dataset.d);render();
+});
+document.getElementById('prev').onclick=function(){view=new Date(view.getFullYear(),view.getMonth()-1,1);render();};
+document.getElementById('next').onclick=function(){view=new Date(view.getFullYear(),view.getMonth()+1,1);render();};
+document.getElementById('todayBtn').onclick=function(){view=new Date(today.getFullYear(),today.getMonth(),1);sel=today;render();};
+if(!kids.length)document.getElementById('mgr').open=true;
+renderMgr();render();
+</script>
+</body>
+</html>
